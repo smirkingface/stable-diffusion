@@ -2,7 +2,7 @@ model:
   target: sd.models.diffusion.StableDiffusion
   params:
     base_learning_rate: 1.0e-6
-    use_ema: True
+    use_ema: False
 
     scheduler_config:
       scheduler:
