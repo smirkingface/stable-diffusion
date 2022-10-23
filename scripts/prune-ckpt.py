@@ -3,7 +3,7 @@ import torch
 import argparse
 
 
-def prune_checkpoint(filename, output_filename, only_ema=False, remove_ema=False, fp16=False):
+def prune_checkpoint(filename, output_filename=None, only_ema=False, remove_ema=False, fp16=False):
     print(f'Pruning checkpoint: {filename}')
     size_initial = os.path.getsize(filename)
     checkpoint = torch.load(filename, map_location='cpu')
@@ -35,7 +35,7 @@ def prune_checkpoint(filename, output_filename, only_ema=False, remove_ema=False
                     print(f'  {k} found in model_ema, but no matching parameter in model')
                 del sd[k]
         
-        out_filename = f'{os.path.splitext(filename)[0]}-ema-pruned.ckpt'
+        out_filename = f'{os.path.splitext(filename)[0]}_ema.ckpt'
     elif remove_ema:
         # Delete EMA keys
         keys = list(sd.keys())
@@ -43,9 +43,9 @@ def prune_checkpoint(filename, output_filename, only_ema=False, remove_ema=False
             if k.startswith('model_ema.'):
                 del sd[k]
         
-        out_filename = f'{os.path.splitext(filename)[0]}-noema_pruned.ckpt'
+        out_filename = f'{os.path.splitext(filename)[0]}_noema.ckpt'
     else:
-        out_filename = f'{os.path.splitext(filename)[0]}-pruned.ckpt'
+        out_filename = f'{os.path.splitext(filename)[0]}_pruned.ckpt'
     
     # Convert weights to FP16 if requested
     if fp16:
@@ -65,7 +65,7 @@ def prune_checkpoint(filename, output_filename, only_ema=False, remove_ema=False
     out_filename = output_filename or out_filename
 
     print(f'Saving pruned checkpoint to: {out_filename}')
-    torch.save(sd, out_filename)
+    torch.save(checkpoint, out_filename)
     newsize = os.path.getsize(out_filename)
     msg = f'New ckpt size: {newsize*1e-9:.2f} GB. ' + \
           f'Saved {(size_initial - newsize)*1e-9:.2f} GB by removing optimizer states'

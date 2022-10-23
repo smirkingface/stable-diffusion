@@ -28,6 +28,7 @@ class ImageLogger(Callback):
         self.prefix = prefix
         self.grid = grid
         self.use_ema = use_ema
+        self.last_step = -1
     
     def write_images(self, images, batch, logdir, epoch, global_step):
         root = os.path.join(logdir, 'images', 'prompts')
@@ -89,9 +90,10 @@ class ImageLogger(Callback):
             pl_module.train()
     
     def on_train_batch_start(self, trainer, pl_module, batch, batch_index):
-        if not self.first and (self.every_n_steps == None or pl_module.global_step % self.every_n_steps != 0):
+        if not self.first and (self.every_n_steps == None or pl_module.global_step % self.every_n_steps != 0 or pl_module.global_step == self.last_step):
             return
 
+        self.last_step = pl_module.global_step
         self.first = False
         self.log_images(trainer, pl_module)
     
