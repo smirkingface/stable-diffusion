@@ -84,6 +84,7 @@ if __name__ == '__main__':
         '-f',
         '--filename',
         type=str,
+        required=True,
         help='Path to checkpoint of model',
     )
     parser.add_argument(
