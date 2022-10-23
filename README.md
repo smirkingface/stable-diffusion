@@ -42,17 +42,17 @@ Compatibility notes:
 - This repository changed the default Pytorch-Lightning logger to CSV (modify `logger` in the `lightning` configuration to change back to other loggers).
 
 # Supporting this project
-This repository is being developed as part of the SmirkingFace project and you can support its development through Patreon ([http://patreon.com/smirkingface]). While the SD finetuning for this project aims at NSFW content, the code developed here is general purpose and not biased in any way, nor contains any NSFW content.
+This repository is being developed as part of the SmirkingFace project and you can support its development through Patreon (http://patreon.com/smirkingface). While the SD finetuning for this project aims at NSFW content, the code developed here is general purpose and not biased in any way, nor contains any NSFW content.
 
 You can also support the project by testing, helping to implement new features, and otherwise be involved with the community.
 
 # Getting started with finetuning Stable Diffusion
 
 ## Prerequisites
-- Finetuning the complete Stable Diffusion model currently requires a GPU with 24GB VRAM or more and 32GB system RAM.
+- Finetuning the complete Stable Diffusion model currently requires a GPU with at least 24GB VRAM and at least 32GB system RAM.
 
 ## Installation
-The easiest way to get started is through Anaconda [https://anaconda.org/].
+The easiest way to get started is through Anaconda (https://anaconda.org/).
 
 Create and activate an Anaconda environment with:
 ```
@@ -86,7 +86,7 @@ Pytorch-lightning supports many additional command-line arguments for training o
 
 
 # Running text-to-image and image-to-image
-While not the primary focus of this project, improved versions of the text-to-image and image-to-image scripts are provided in [/scripts]. By default, it will assume you have placed the Stable Diffusion checkpoint in [/models] named `model.ckpt`. The commandline options are mostly the same as the inference scripts provided in the official Stable Diffusion repository.
+While not the primary focus of this project, improved versions of the text-to-image and image-to-image scripts are provided in [/scripts](/scripts). By default, it will assume you have placed the Stable Diffusion checkpoint in [/models](/models) named `model.ckpt`. The commandline options are mostly the same as the inference scripts provided in the official Stable Diffusion repository.
 By default these scripts runs the fixed DDIM sampler with eta=1.0 and 50 steps, which performs very comparably to the Euler Ancestral sampler from k-diffusion.
 Do note that img2img.py always runs the requested number of inference steps (`--steps`), whereas the original made this dependent on the `--strength` parameter (lower strength implied fewer steps).
 
@@ -102,4 +102,4 @@ python scripts/txt2img.py --prompt "a smirking face" --ckpt ./models/SF_EBL_1.0.
 ```
 
 ## Examples and advanced use
-See [docs/examples]
+See [docs/examples.md](docs/examples.md)
