@@ -1,0 +1,10 @@
+model:
+  target: sd.models.diffusion.StableDiffusion
+  params:
+    use_ema: False
+
+    unet_config:
+      target: sd.modules.extensions.unet.ExtendedUNetModel
+      params:
+        kernel_size: 5
+        skip_connection_conv: True

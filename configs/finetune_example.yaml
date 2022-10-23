@@ -1,0 +1,76 @@
+# Model configuration
+model:
+  target: sd.models.diffusion.StableDiffusion
+  params:
+    # Low learning rate to preserve original model
+    base_learning_rate: 1.0e-06
+    
+    # Disable EMA for decrease VRAM usage
+    use_ema: False
+    
+    # Warmup LR in the first 1000 training steps
+    scheduler_config:
+      scheduler:
+        target: torch.optim.lr_scheduler.LinearLR
+        params:
+          start_factor: 0.001
+          total_iters: 1000
+      interval: step
+      frequency: 1
+
+    # Default UNet configuration with gradient checkpoints for decreased VRAM usage (at the cost of computation time)
+    unet_config:
+      target: sd.modules.unet.UNetModel
+      params:
+        use_checkpoint: True
+
+# Data configuration, only training data, no validation data
+data:
+  target: sd.data.utils.DataModuleFromConfig
+  params:
+    # Batch size set to 1 for decreased VRAM usage
+    batch_size: 1
+    num_workers: 4
+    train:
+      # Dataset wrapper that repeatedly samples the dataset. Use to make larger (virtual) epochs. Note that a RepeatedDataset is an IterableDataset, and therefore every worker will do <N> repeats of all samples.
+      target: sd.data.utils.RepeatedDataset
+      params:
+        repeats: 25
+        dataset:
+          # Dataset that loads data straight from a directory containing image files (.jpg/.jpeg/.png) and caption files (.txt) and optionally image information (.json)
+          target: sd.data.directory.DirectoryDataset
+          params:
+            # Path to directory
+            data_root: ./data/example
+            # Transformations to apply to the image, note that this should always result in images with exactly the same size (which has to be a multiple of 64)
+            # ResizePadAndCrop takes care of common transformations (random resize, optional padding, and random cropping), RandomHorizontalFlip randomly flips the image horizontally
+            transforms:
+            - {target: sd.data.augmentations.ResizePadAndCrop, params: {shape: 512, max_scale_before_crop: 1.4, allow_padding: True}}
+            - {target: torchvision.transforms.RandomHorizontalFlip, params: {p: 0.5}}
+
+lightning:
+  callbacks:
+    # Log images with the given prompts every 20 epochs, evaluate with batch size 1
+    image_logger:
+      target: sd.callbacks.imagelogger.ImageLogger
+      params:
+        every_n_epochs: 1
+        batch_size: 1
+        seed: 0
+        prompts:
+        - a dog with a frisbee
+        - a bear
+        - a cat playing with a shoe
+
+  # Modify the default ModelCheckpoint to run every 20 epochs
+  modelcheckpoint:
+    target: sd.pl_hacks.ModelCheckpoint
+    params:
+      every_n_epochs: 1
+      filename: '{epoch:06}'
+      verbose: True
+      save_last: True
+      save_top_k: 0
+
+  trainer:
+    max_epochs: 10

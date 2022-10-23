@@ -1,0 +1,53 @@
+model:
+  target: sd.models.diffusion.StableDiffusion
+  params:
+    base_learning_rate: 1.0e-6
+    use_ema: True
+
+    scheduler_config:
+      scheduler:
+        target: torch.optim.lr_scheduler.LinearLR
+        params:
+          start_factor: 0.01
+          total_iters: 10000
+      interval: step
+      frequency: 1
+
+    unet_config:
+      target: sd.modules.unet.UNetModel
+      params:
+        use_checkpoint: True
+
+data:
+  target: sd.data.utils.DataModuleFromConfig
+  params:
+    batch_size: 1
+    num_workers: 4
+    train:
+      target: sd.data.dummy.DummyData
+      params:
+        length: 20
+        size: [256, 256, 3]
+    validation:
+      target: sd.data.dummy.DummyData
+      params:
+        length: 20
+        size: [256, 256, 3]
+
+lightning:  
+  callbacks:
+    imagelogger:
+      target: sd.callbacks.imagelogger.ImageLogger
+      params:
+        every_n_epochs: 1
+        batch_size: 1
+        seed: 42
+        prompts:
+        - a bear
+
+  trainer:
+    benchmark: True
+    max_epochs: 10
+    val_check_interval: 1.0
+    num_sanity_val_steps: 2
+    accumulate_grad_batches: 1
