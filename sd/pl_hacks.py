@@ -93,22 +93,23 @@ class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
         parts = os.path.split(filepath)
         tmp_path = os.path.join(parts[0], '_temp.ckpt')
         
-        if self._last_global_step_saved == trainer.global_step:
-            # Copy checkpoint if it already saved to disk this step (e.g. topk + last)
+        if trainer.is_global_zero:
+            if self._last_global_step_saved == trainer.global_step:
+                # Copy checkpoint if it already saved to disk this step (e.g. topk + last)
+                if self.use_temporary_file:
+                    shutil.copy(self._last_filename, tmp_path)
+                    shutil.move(tmp_path, filepath)
+                else:
+                    shutil.copy(self._last_filename, filepath)
+                return
+            
             if self.use_temporary_file:
-                shutil.copy(self._last_filename, tmp_path)
+                # Save checkpoint to temporary file first, the move to the final filename to avoid overwriting ckpt with a partial one
+                trainer.save_checkpoint(tmp_path, self.save_weights_only)
                 shutil.move(tmp_path, filepath)
             else:
-                shutil.copy(self._last_filename, filepath)
-            return
-        
-        if self.use_temporary_file:
-            # Save checkpoint to temporary file first, the move to the final filename to avoid overwriting ckpt with a partial one
-            trainer.save_checkpoint(tmp_path, self.save_weights_only)
-            shutil.move(tmp_path, filepath)
-        else:
-            trainer.save_checkpoint(filepath, self.save_weights_only)
-        self._last_filename = filepath
+                trainer.save_checkpoint(filepath, self.save_weights_only)
+            self._last_filename = filepath
 
         self._last_global_step_saved = trainer.global_step
 
