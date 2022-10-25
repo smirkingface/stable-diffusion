@@ -35,7 +35,7 @@ class CocoBase(Dataset):
                     self.labels["image_ids"].append(imgdir["id"])
             else:
                 self.labels["image_ids"].append(imgdir["id"])
-        print(f'Coco has {self.labels["image_ids"]} images')
+        print(f'Coco has {len(self.labels["image_ids"])} images')
 
         capdirs = self.json_data["annotations"]
         for capdir in tqdm(capdirs, desc="ImgToCaptions"):
@@ -77,12 +77,10 @@ class CocoBase(Dataset):
         
 class CocoImagesAndCaptionsTrain2017(CocoBase):
     """returns a pair of (image, caption)"""
-    def __init__(self, size, onehot_segmentation=False, use_stuffthing=False, crop_size=None, force_no_crop=False,):
-        super().__init__(size=size,
-                         dataroot="data/coco/train2017",
-                         datajson="data/coco/annotations/captions_train2017.json",
-                         onehot_segmentation=onehot_segmentation,
-                         use_stuffthing=use_stuffthing, crop_size=crop_size, force_no_crop=force_no_crop)
+    def __init__(self, **kwargs):
+        super().__init__(dataroot="../data/coco/train2017",
+                         datajson="../data/coco/annotations/captions_train2017.json",
+                         **kwargs)
 
     def get_split(self):
         return "train"
@@ -93,8 +91,8 @@ class CocoImagesAndCaptionsTrain2017(CocoBase):
 class CocoImagesAndCaptionsValidation2017(CocoBase):
     """returns a pair of (image, caption)"""
     def __init__(self, **kwargs):
-        super().__init__(dataroot="data/coco/val2017",
-                         datajson="data/coco/annotations/captions_val2017.json",
+        super().__init__(dataroot="../data/coco/val2017",
+                         datajson="../data/coco/annotations/captions_val2017.json",
                          **kwargs)
 
     def get_split(self):
