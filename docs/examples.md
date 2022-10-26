@@ -88,9 +88,11 @@ Notes:
 - VariableShapeDataset will collate images with the same shape in buffers and yield the buffer once it reaches the desired batch size (`<B>`). You will also need to provide the total number of batches per epoch provided this way (`<N>`). Using many different shapes combined with a high `<B>` and low `<N>` will result in low efficiency.
 
 ## Using the 8-bit Adam optimizer
+Note: Currently linux-only
+
 1. Install bitsandbytes: ```pip install bitsandbytes```
 2. In the configuration file, configure `optimizer_config` to use Adam8bit:
 ```
 optimizer_config:
-  target: bnb.optim.Adam8bit
+  target: bitsandbytes.optim.Adam8bit
 ```
