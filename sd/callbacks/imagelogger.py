@@ -13,7 +13,7 @@ from sd.util import instantiate_from_config
 from sd.samplers.ddim import DDIMSampler
 
 class ImageLogger(Callback):
-    def __init__(self, batch_size=1, shape=[512,512], prompts=[''], sampler_config=None, prefix='', every_n_steps=None, every_n_epochs=1, seed=None, grid=True, save_full_batch=True, use_ema=True):
+    def __init__(self, batch_size=1, shape=[512,512], prompts=[''], sampler_config=None, prefix='', every_n_steps=None, every_n_epochs=1, seed=None, grid=True, single_grid=False, use_ema=True):
         self.prompts = prompts
         self.first = True
         self.shape = shape
@@ -27,7 +27,7 @@ class ImageLogger(Callback):
             self.sampler = instantiate_from_config(sampler_config)
         self.prefix = prefix
         self.grid = grid
-        self.save_full_batch = save_full_batch
+        self.single_grid = single_grid
         self.use_ema = use_ema
         self.last_step = -1
 
@@ -79,7 +79,7 @@ class ImageLogger(Callback):
         if is_train:
             pl_module.eval()
 
-        image_set = {}
+        image_set = None
         for b in range(int(math.ceil(len(self.prompts) / self.batch_size))):
             # Skip batches based on the rank of the current process (splits work across GPUs/nodes)
             if b % ws != gr:
@@ -87,16 +87,17 @@ class ImageLogger(Callback):
 
             images = self.sample_images(pl_module, self.prompts[b*self.batch_size:(b+1)*self.batch_size])
 
-            if self.save_full_batch:
-                if len(image_set):
-                    for k in image_set:
-                        image_set[k] = torch.cat((image_set[k], images[k]), 0)
-                else:
+            # TODO: Fix single_grid in combination with DDP training, all_gather the images to rank 0 and save from there.
+            if self.single_grid:
+                if image_set == None:
                     image_set = images
+                else:
+                    for k in image_set:
+                        image_set[k] = torch.cat((image_set[k], images[k]), dim=0)
             else:
                 self.write_images(images, b, logdir, pl_module.current_epoch, pl_module.global_step)
 
-        if self.save_full_batch:
+        if self.single_grid:
             self.write_images(image_set, 0, logdir, pl_module.current_epoch, pl_module.global_step)
 
         if is_train:
