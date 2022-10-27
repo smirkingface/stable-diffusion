@@ -29,7 +29,7 @@ class ImageLogger(Callback):
         self.grid = grid
         self.use_ema = use_ema
         self.last_step = -1
-    
+
     def write_images(self, images, batch, logdir, epoch, global_step):
         root = os.path.join(logdir, 'images', 'prompts')
         for k in images:
@@ -48,10 +48,10 @@ class ImageLogger(Callback):
                     path = os.path.join(root, filename)
                     os.makedirs(os.path.split(path)[0], exist_ok=True)
                     Image.fromarray(image).save(path)
-    
+
     def sample_images(self, model, prompts):
         images = {}
-        
+
         if self.use_ema and model.use_ema:
             # Reset RNG after sampling
             with isolate_rng():
@@ -60,7 +60,7 @@ class ImageLogger(Callback):
                 with model.ema_scope("Plotting"):
                     x = model.sample(prompts, self.sampler, shape=self.shape)
                     images['samples_ema'] = torch.clamp((x + 1.0) / 2.0, min=0.0, max=1.0).cpu()
-        
+
         # Reset RNG after sampling
         with isolate_rng():
             if self.seed != None:
@@ -68,7 +68,7 @@ class ImageLogger(Callback):
             x = model.sample(prompts, self.sampler, shape=self.shape)
             images['samples'] = torch.clamp((x + 1.0) / 2.0, min=0.0, max=1.0).cpu()
         return images
-    
+
     def log_images(self, trainer, pl_module):
         gr = trainer.global_rank
         ws = trainer.world_size
@@ -88,7 +88,7 @@ class ImageLogger(Callback):
             
         if is_train:
             pl_module.train()
-    
+
     def on_train_batch_start(self, trainer, pl_module, batch, batch_index):
         if not self.first and (self.every_n_steps == None or pl_module.global_step % self.every_n_steps != 0 or pl_module.global_step == self.last_step):
             return
@@ -96,10 +96,10 @@ class ImageLogger(Callback):
         self.last_step = pl_module.global_step
         self.first = False
         self.log_images(trainer, pl_module)
-    
+
     def on_train_epoch_start(self, trainer, pl_module):
         if not self.first and (self.every_n_epochs == None or pl_module.current_epoch % self.every_n_epochs != 0):
             return
-        
+
         self.first = False
         self.log_images(trainer, pl_module)
