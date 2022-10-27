@@ -335,6 +335,7 @@ class StableDiffusion(pl.LightningModule):
                 if v.requires_grad:
                     k = self.model_ema.m_name2s_name[key]
                     state_dict[f'model_ema.{k}'] = v.data
+            state_dict['model_ema.decay'] = torch.tensor(self.model_ema.decay.item(), dtype=torch.float32)
             state_dict['model_ema.num_updates'] = torch.tensor(0, dtype=torch.int)
         
         if self.sd_compatibility:
