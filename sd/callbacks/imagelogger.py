@@ -13,7 +13,7 @@ from sd.util import instantiate_from_config
 from sd.samplers.ddim import DDIMSampler
 
 class ImageLogger(Callback):
-    def __init__(self, batch_size=1, shape=[512,512], prompts=[''], sampler_config=None, prefix='', every_n_steps=None, every_n_epochs=1, seed=None, grid=True, use_ema=True):
+    def __init__(self, batch_size=1, shape=[512,512], prompts=[''], sampler_config=None, prefix='', every_n_steps=None, every_n_epochs=1, seed=None, grid=True, single_grid=False, use_ema=True):
         self.prompts = prompts
         self.first = True
         self.shape = shape
@@ -27,9 +27,10 @@ class ImageLogger(Callback):
             self.sampler = instantiate_from_config(sampler_config)
         self.prefix = prefix
         self.grid = grid
+        self.single_grid = single_grid
         self.use_ema = use_ema
         self.last_step = -1
-    
+
     def write_images(self, images, batch, logdir, epoch, global_step):
         root = os.path.join(logdir, 'images', 'prompts')
         for k in images:
@@ -48,10 +49,10 @@ class ImageLogger(Callback):
                     path = os.path.join(root, filename)
                     os.makedirs(os.path.split(path)[0], exist_ok=True)
                     Image.fromarray(image).save(path)
-    
+
     def sample_images(self, model, prompts):
         images = {}
-        
+
         if self.use_ema and model.use_ema:
             # Reset RNG after sampling
             with isolate_rng():
@@ -60,7 +61,7 @@ class ImageLogger(Callback):
                 with model.ema_scope("Plotting"):
                     x = model.sample(prompts, self.sampler, shape=self.shape)
                     images['samples_ema'] = torch.clamp((x + 1.0) / 2.0, min=0.0, max=1.0).cpu()
-        
+
         # Reset RNG after sampling
         with isolate_rng():
             if self.seed != None:
@@ -68,7 +69,7 @@ class ImageLogger(Callback):
             x = model.sample(prompts, self.sampler, shape=self.shape)
             images['samples'] = torch.clamp((x + 1.0) / 2.0, min=0.0, max=1.0).cpu()
         return images
-    
+
     def log_images(self, trainer, pl_module):
         gr = trainer.global_rank
         ws = trainer.world_size
@@ -77,18 +78,31 @@ class ImageLogger(Callback):
         is_train = pl_module.training
         if is_train:
             pl_module.eval()
-        
+
+        image_set = None
         for b in range(int(math.ceil(len(self.prompts) / self.batch_size))):
             # Skip batches based on the rank of the current process (splits work across GPUs/nodes)
             if b % ws != gr:
                 continue
 
             images = self.sample_images(pl_module, self.prompts[b*self.batch_size:(b+1)*self.batch_size])
-            self.write_images(images, b, logdir, pl_module.current_epoch, pl_module.global_step)
-            
+
+            # TODO: Fix single_grid in combination with DDP training, all_gather the images to rank 0 and save from there.
+            if self.single_grid:
+                if image_set == None:
+                    image_set = images
+                else:
+                    for k in image_set:
+                        image_set[k] = torch.cat((image_set[k], images[k]), dim=0)
+            else:
+                self.write_images(images, b, logdir, pl_module.current_epoch, pl_module.global_step)
+
+        if self.single_grid:
+            self.write_images(image_set, 0, logdir, pl_module.current_epoch, pl_module.global_step)
+
         if is_train:
             pl_module.train()
-    
+
     def on_train_batch_start(self, trainer, pl_module, batch, batch_index):
         if not self.first and (self.every_n_steps == None or pl_module.global_step % self.every_n_steps != 0 or pl_module.global_step == self.last_step):
             return
@@ -96,10 +110,10 @@ class ImageLogger(Callback):
         self.last_step = pl_module.global_step
         self.first = False
         self.log_images(trainer, pl_module)
-    
+
     def on_train_epoch_start(self, trainer, pl_module):
         if not self.first and (self.every_n_epochs == None or pl_module.current_epoch % self.every_n_epochs != 0):
             return
-        
+
         self.first = False
         self.log_images(trainer, pl_module)
