@@ -11,15 +11,15 @@ class ShuffleCaption:
     def __init__(self, jitter=2, max_len=0):
         self.jitter = jitter
         self.max_len = max_len
-        
+
     def __call__(self, caption):
         parts = caption.split(',')
         parts = [x.strip() for x in parts]
-        
+
         # Random subsample which maintains order
         if self.max_len > 0 and len(parts) > self.max_len:
             parts = [x[1] for x in sorted(random.sample(list(enumerate(parts)), self.max_len))]
-        
+
         # Jitter positions
         parts = [x[1] for x in sorted([(i + random.randint(-self.jitter,self.jitter),x) for i,x in enumerate(parts)], key=lambda x:x[0])]
         return ', '.join(parts)
@@ -42,10 +42,10 @@ class ResizePadAndCrop:
             self.shape = [self.shape, self.shape]
         if type(self.shape[0]) != list:
             self.shape = [self.shape]
-            
+
         self.max_scale_before_crop = max_scale_before_crop
         self.allow_padding = allow_padding
-        
+
         self.shapes_w = []
         self.shapes_h = []
         for x in self.shape:
@@ -53,15 +53,15 @@ class ResizePadAndCrop:
                 self.shapes_w.append(x)
             if x[0] <= x[1]:
                 self.shapes_h.append(x)
-        
+
         self.match_aspect_ratio = match_aspect_ratio
         self.match_closest_aspect_ratio = match_closest_aspect_ratio
         self.closest_aspect_ratio_eps = closest_aspect_ratio_eps
         if match_closest_aspect_ratio:
             self.shape_ars = np.array([x[0] / x[1] for x in self.shape])
-            
+
         self.ignore_alpha = ignore_alpha
-        
+
         self.resize = transforms.Resize(size=1, interpolation=transforms.InterpolationMode.BICUBIC)
         if allow_padding:
             self.crop = RandomCropMasked(size=1, center_if_padded=center_if_padded, ignore_alpha=ignore_alpha)
@@ -72,7 +72,7 @@ class ResizePadAndCrop:
         # Throw away alpha channel if requested
         if self.ignore_alpha and image.mode == 'RGBA':
             image = image.convert('RGB')
-            
+
         # Pick random shape, matching aspect ratio if requested
         if self.match_aspect_ratio:
             if self.match_closest_aspect_ratio:
@@ -96,7 +96,7 @@ class ResizePadAndCrop:
         self.crop.size = (shape[1],shape[0])
         ar_shape = shape[0] / shape[1]
         ar_image = image.size[0] / image.size[1]
-        
+
         f = self.max_scale_before_crop
         if self.allow_padding:
             if ar_shape > ar_image:
@@ -113,7 +113,7 @@ class ResizePadAndCrop:
                 w = random.randint(shape[0], min(round(shape[0]*f), image.size[0]))
                 h = round(image.size[1]/image.size[0] * w)
         self.resize.size = (h,w)
-        
+
         # Apply resize and crop
         if image.mode == 'RGBA':
             mask = image.split()[3]
@@ -124,9 +124,9 @@ class ResizePadAndCrop:
         else:
             image = self.resize(image)
         image = self.crop(image)
-        
+
         return image
-    
+
 # Random crop augmentation, also provides a mask in the alpha channel of the augmented image
 # Applies a different padding mode to the image (padding_mode) and the mask (always zero-padding)
 class RandomCropMasked(transforms.RandomCrop):
@@ -134,7 +134,7 @@ class RandomCropMasked(transforms.RandomCrop):
         super().__init__(size, padding=padding, pad_if_needed=True, padding_mode=padding_mode)
         self.center_if_padded = center_if_padded
         self.ignore_alpha = ignore_alpha
-        
+
     def forward(self, img):
         tmp = img.split()
         if not self.ignore_alpha and len(tmp) == 4:
@@ -152,7 +152,7 @@ class RandomCropMasked(transforms.RandomCrop):
             _, height, width = F.get_dimensions(img)
         else:
             width, height = F.get_image_size(img)
-        
+
         w_padded = False
         h_padded = False
         # pad the width if needed
@@ -161,7 +161,7 @@ class RandomCropMasked(transforms.RandomCrop):
             img = F.pad(img, padding, self.fill, self.padding_mode)
             mask = F.pad(mask, padding, 0, 'constant')
             w_padded = True
-            
+
         # pad the height if needed
         if self.pad_if_needed and height < self.size[0]:
             padding = [0, self.size[0] - height]
@@ -175,7 +175,7 @@ class RandomCropMasked(transforms.RandomCrop):
                 j = (self.size[1] - width) // 2
             if h_padded:
                 i = (self.size[0] - height) // 2
-        
+
         r = F.crop(img, i, j, h, w)
         # r.convert('RGB').save(f'test_{random.randint(0,100)}.png')
         r.putalpha(F.crop(mask, i, j, h, w))
