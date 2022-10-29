@@ -4,6 +4,7 @@ import numpy as np
 from torchvision import transforms
 import torchvision.transforms.functional as F
 
+import re
 import random
 
 # Shuffle a comma-separate text caption. Keep max_len items (0 = no limit), shuffle items by at most jitter positions (put a high value for pure random order).
@@ -23,6 +24,118 @@ class ShuffleCaption:
         # Jitter positions
         parts = [x[1] for x in sorted([(i + random.randint(-self.jitter,self.jitter),x) for i,x in enumerate(parts)], key=lambda x:x[0])]
         return ', '.join(parts)
+
+# Randomly swap out words in your prompt for synonyms in the synonyms file. File must include path, as it is not aware of data_root.
+# Synonyms files have the following format:
+#
+#     # This is a comment
+#     big = large
+#     beautiful = attractive, gorgeous, stunning
+#
+# Use underscores in your original captions (not in the synonyms file) for multi-word phrases that you want swapped out.
+# All underscores will be turned into spaces, post-swap. Otherwise, every word is checked against the file. (Hyphens still count as word boundaries.)
+# All captions are assumed to be in lowercase, and replacements may be converted to lowercase.
+# If align_to_single_set, synonyms will instead be aligned to the word on the left side (i.e. "beautiful" in the above example will always replace the other three).
+# Without it set, words on both sides can be used as replacements (i.e. no need to duplicate with "large = big")
+class SwapCaptionSynonyms:
+    def __init__(self, synonyms_file, align_to_single_set=False):
+        # Load synonyms file
+        self.synonyms = {}
+        with open(f'{synonyms_file}', encoding='utf8') as fh:
+            for line in fh:
+                line = re.sub(r'# .*', '', line).strip().lower()
+                if line.find('=') > -1:
+                    key, tag_str = re.split(r'\s*=\s*', line)
+                    tag_list = re.split(r'\s*,\s*', tag_str)
+
+                    if align_to_single_set:
+                        for tag in tag_list:
+                            self.synonyms[tag] = [ key ]
+                    else:
+                        tag_list.append(key)
+                        for tag in tag_list:
+                            self.synonyms[tag] = tag_list
+
+        print(f'Synonyms file has {len(self.synonyms)} words')
+
+    def __call__(self, caption):
+        # words is a mutated split list that can't be reformed, but is more exact as a word list.
+        # parts is a safer split of caption that will be reformed back to a caption.
+        # This is needed, so that replacements can use different random words on each match.
+        words = re.split(r'\b\W+\b', caption)
+        parts = re.split(r'\b',      caption)
+
+        for word in words:
+            skey = word.replace('_', ' ').lower()
+            if skey in self.synonyms:
+                for i, part in enumerate(parts):
+                    if word.lower() == part.lower():
+                        parts[i] = part.replace(word, random.choice( self.synonyms[skey] ))
+
+        caption = ''.join(parts)
+        return caption.replace('_', ' ')
+
+# Add other tags to a caption, based on a matched tag, using an implied tags file. File must include path, as it is not aware of data_root.
+# Implied tags files have the following format:
+#
+#     # This is a comment
+#     dog  = four-legged, fuzzy, loyal
+#     cat  = four-legged, fuzzy, independent
+#     bird = two-legged, winged
+#
+# A "tag" in this case is the entire phrase in a comma-delimited list.
+# activation_p controls the probability that it will decide to add tags. addition_p is the same thing for each new tag, after activation_p is triggered.
+# New tags are shuffled, unless random_tag_order is False.
+#
+# If you also use SwapCaptionSynonyms, put this after it in the caption_transforms order, so that underscores get converted to spaces.
+# But, you will also need to include all synonyms, if they also have implied tags.
+# (Or you can load SwapCaptionSynonyms twice, before and after, if it's simple single word substitutions in the implied tags.)
+# Putting ShuffleCaption last is also a good idea, to include the new tags in the shuffle.
+class AddImpliedTagsToCaption:
+    def __init__(self, implied_tags_file, activation_p=0.5, addition_p=0.8, random_tag_order=True):
+        self.activation_p     = activation_p
+        self.addition_p       = addition_p
+        self.random_tag_order = random_tag_order
+
+        # Load implied tags file
+        self.implied_tags = {}
+        with open(f'{implied_tags_file}', encoding='utf8') as fh:
+            for line in fh:
+                line = re.sub(r'# .*', '', line).strip()
+                if line.find('=') > -1:
+                    key, tag_str = re.split(r'\s*=\s*', line)
+                    tag_list = re.split(r'\s*,\s*', tag_str)
+
+                    self.implied_tags[key.lower()] = tag_list
+
+        print(f'Implied tags file has {len(self.implied_tags)} entries')
+
+    def __call__(self, caption):
+        tags = caption.split(',')
+        tags = [x.strip() for x in tags]
+
+        for i, tag in enumerate(tags):
+            if tag.lower() in self.implied_tags and self.activation_p > random.random():
+                additions = []
+                for ntag in self.implied_tags[tag]:
+                    if self.addition_p > random.random():
+                        additions.append(ntag)
+
+                if self.random_tag_order:
+                    random.shuffle(additions)
+
+                tags[i+1:i+1] = additions
+
+        return ', '.join(tags)
+
+# Prints the caption. Useful for debugging a caption_transforms chain.
+class PrintCaption:
+    def __init__(self, prefix='CAPTION'):
+        self.prefix = prefix
+
+    def __call__(self, caption):
+        print(f'{self.prefix}: {caption}')
+        return caption
 
 # Augmentation module that resizes, pads, and crops images (whichever apply)
 # Final image will be of shape 'shape', which can be:
