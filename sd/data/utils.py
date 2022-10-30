@@ -124,3 +124,12 @@ class RepeatedDataset(IterableDataset):
     def __iter__(self):
         for i in range(self.repeats):
             yield from (iter(self.dataset) if isinstance(self.dataset, IterableDataset) else shuffle_iterator(self.dataset))
+
+# Caption transform that prints the caption. Useful for debugging a caption_transforms chain.
+class PrintCaption:
+    def __init__(self, prefix='Caption'):
+        self.prefix = prefix
+
+    def __call__(self, caption):
+        print(f'{self.prefix}: {caption}')
+        return caption

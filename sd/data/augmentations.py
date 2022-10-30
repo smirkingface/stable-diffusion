@@ -6,9 +6,11 @@ import torchvision.transforms.functional as F
 
 import random
 
-# Shuffle a comma-separate text caption. Keep max_len items (0 = no limit), shuffle items by at most jitter positions (put a high value for pure random order).
+
+# Shuffle a comma-separate text caption. Keep max_len items (None = no limit), and shuffle items. If jitter is an integer, shuffle
+# positions by at most jitter positions, useful to keep an approximate ordering.
 class ShuffleCaption:
-    def __init__(self, jitter=2, max_len=0):
+    def __init__(self, jitter=None, max_len=None):
         self.jitter = jitter
         self.max_len = max_len
         
@@ -17,12 +19,80 @@ class ShuffleCaption:
         parts = [x.strip() for x in parts]
         
         # Random subsample which maintains order
-        if self.max_len > 0 and len(parts) > self.max_len:
+        if self.max_len != None and len(parts) > self.max_len:
             parts = [x[1] for x in sorted(random.sample(list(enumerate(parts)), self.max_len))]
         
-        # Jitter positions
-        parts = [x[1] for x in sorted([(i + random.randint(-self.jitter,self.jitter),x) for i,x in enumerate(parts)], key=lambda x:x[0])]
+        if self.jitter == None:
+            random.shuffle(parts)
+        else:
+            # Jitter positions
+            parts = [x[1] for x in sorted([(i + random.randint(-self.jitter, self.jitter),x) for i,x in enumerate(parts)], key=lambda x:x[0])]
         return ', '.join(parts)
+
+
+# Replace synonyms within a caption.
+# Define synonyms as either a dictionary or a filename to yaml file containing the dictionary. The key of the dictionary
+# is a word, the value can be either a string (a single synonym) or a list of strings (multiple synonyms). Keep in mind
+# that the strings are case-sensitive.
+# For example (in yaml format):
+# house: home
+# car: [car, automobile, wagon]
+# 'a car': car
+# 
+# If unify==False, ReplaceSynonyms will replace the key word with a random synonym. If unify==True, all synonyms will be
+# replaced by the key word. If match_tag==True, only comma-separated (or tag_separator separated) tags will be matched, which
+# can be multiple words. If match_tag==False, synonyms will be matched as complete words (but synonyms can contain spaces and otherwise
+# characters).
+# Note that if you want to replace a randomly between all occurences of a synonym list, each synonym must be listed as a
+# key word, for example:
+# car: [car, automobile, wagon]
+# automobile: [car, automobile, wagon] 
+# wagon: [car, automobile, wagon]
+class ReplaceSynonyms:
+    def __init__(self, synonyms, match_tag=False, tag_separator=',', unify=False):
+        self.unify = unify
+        if isinstance(synonyms, str):
+            synonyms = yaml.safe_load(synonyms)
+        assert isinstance(synonyms, dict), 'ReplaceSynonyms: synonyms must be a dictionary object'
+
+        if unify:
+            # "Invert" synonyms
+            unify_rep = {}
+            for word,synonyms in synonyms.items():
+                if isinstance(synonyms, list):
+                    for synonym in synonyms:
+                        if synonym not in unify_rep:
+                            unify_rep[synonym] = word
+                else:
+                    if synonyms not in unify_rep:
+                        unify_rep[synonyms] = word
+            synonyms = unify_rep
+        
+        self.replacer = self.make_replacer(synonyms, match_tag, tag_separator)
+
+    # Make a function that performs string replacements
+    def make_replacer(self, replacements, match_tag, tag_separator=','):
+        tag_separator = re.escape(tag_separator)
+        def replace_match(m):
+            r = replacements[m.group(2)]
+            if isinstance(r, list):
+                r = random.choice(r)
+            return m.group(1) + r
+        
+        # Non-matching regex for each replacement that needs to be matched
+        re_rep = ['(?:' + re.escape(k) + ')' for k in replacements]
+
+        if match_tag:
+            # ((?:(?:^|,))\s*) = Preceded by start of string or separator and optional whitespace
+            # (?=(?:\s*(?:,|$))) = Lookahead (not matched), has to be followed by optional whitespace and end of string or separator
+            pattern = re.compile('((?:(?:^|'+tag_separator+'))\s*)(' + ('|'.join(re_rep)) + ')(?=(?:\s*(?:'+tag_separator+'|$)))')
+        else:
+            # \b = word boundary
+            pattern = re.compile('(\\b)(' + ('|'.join(re_rep)) + ')(?=\\b)')
+        return lambda caption: pattern.sub(replace_match, caption)
+        
+    def __call__(self, caption):
+        return self.replacer(caption)
 
 # Augmentation module that resizes, pads, and crops images (whichever apply)
 # Final image will be of shape 'shape', which can be:
