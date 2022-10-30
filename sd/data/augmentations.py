@@ -52,7 +52,7 @@ class ReplaceSynonyms:
     def __init__(self, synonyms, match_tag=False, tag_separator=',', unify=False):
         self.unify = unify
         if isinstance(synonyms, str):
-            synonyms = yaml.safe_load(synonyms)
+            synonyms = yaml.safe_load(open(synonyms, 'r'))
         assert isinstance(synonyms, dict), 'ReplaceSynonyms: synonyms must be a dictionary object'
 
         if unify:
