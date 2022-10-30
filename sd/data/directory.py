@@ -73,3 +73,47 @@ class DirectoryDataset(Dataset):
             image = np.array(image).astype(np.uint8)
             example['image'] = (image / 127.5 - 1.0).astype(np.float32)
         return example
+
+# Extension to the DirectoryDataset that recursively searches through the data root and uses each subdirectory as a tag to add to the caption
+# (either on the front: directory_tag_mode='prepend', or the back: directory_tag_mode='append', or replacing the entire caption: directory_tag_mode='replace')
+class TaggedDirectoryDataset(DirectoryDataset):
+    def __init__(self, data_root, fixed_caption=None, tag_separator=',', directory_tag_mode='append', mask_key=None, transforms=[], caption_transforms=[]):
+
+        self.data_root = data_root
+        self.image_paths = Path(data_root).rglob('*.*')
+        self.image_paths = [x for x in self.image_paths if str(x).lower().endswith(('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif')) and (mask_key == None or not str(x).lower().endswith('.' + mask_key))]
+        
+        self.directory_tags = [x.relative_to(data_root).parts[:-1] for x in self.image_paths]
+        self.tag_separator = tag_separator
+        self.directory_tag_mode = directory_tag_mode
+        assert(directory_tag_mode in ['append', 'prepend', 'replace'])
+
+        self.num_images = len(self.image_paths)
+        print(f'DirectoryDataset has {self.num_images} images')
+        self._length = self.num_images 
+
+        self.fixed_caption = fixed_caption
+        self.mask_key = mask_key
+
+        self.transforms = load_transforms(transforms)
+        self.caption_transforms = load_transforms(caption_transforms)
+
+    def load_caption(self, i):
+        filename = os.path.splitext(self.image_paths[i % self.num_images])[0] + '.txt'
+        directory_tags = self.directory_tags[i % self.num_images]
+        
+        if self.directory_tag_mode != 'replace':
+            if self.fixed_caption != None:
+                caption = self.fixed_caption
+            elif os.path.exists(filename):
+                caption = open(filename).read()
+            else:
+                caption = ''
+        
+        if self.directory_tag_mode == 'append':
+            caption = self.tag_separator.join([caption] + list(directory_tags))
+        elif self.directory_tag_mode == 'prepend':
+            caption = self.tag_separator.join(list(directory_tags) + [caption])
+        elif self.directory_tag_mode == 'replace':
+            caption = self.tag_separator.join(list(directory_tags))
+        return caption
