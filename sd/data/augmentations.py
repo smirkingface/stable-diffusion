@@ -1,5 +1,7 @@
 from PIL import Image
 import numpy as np
+import yaml
+import re
 
 from torchvision import transforms
 import torchvision.transforms.functional as F
@@ -68,17 +70,19 @@ class ReplaceSynonyms:
                         unify_rep[synonyms] = word
             synonyms = unify_rep
         
-        self.replacer = self.make_replacer(synonyms, match_tag, tag_separator)
+        self.synonyms = synonyms
+        self.pattern = self.make_pattern(synonyms, match_tag, tag_separator)
+
+    def replace_match(self, m):
+        r = self.synonyms[m.group(2)]
+        if isinstance(r, list):
+            r = random.choice(r)
+        return m.group(1) + r
 
     # Make a function that performs string replacements
-    def make_replacer(self, replacements, match_tag, tag_separator=','):
+    def make_pattern(self, replacements, match_tag, tag_separator=','):
         tag_separator = re.escape(tag_separator)
-        def replace_match(m):
-            r = replacements[m.group(2)]
-            if isinstance(r, list):
-                r = random.choice(r)
-            return m.group(1) + r
-        
+
         # Non-matching regex for each replacement that needs to be matched
         re_rep = ['(?:' + re.escape(k) + ')' for k in replacements]
 
@@ -89,10 +93,10 @@ class ReplaceSynonyms:
         else:
             # \b = word boundary
             pattern = re.compile('(\\b)(' + ('|'.join(re_rep)) + ')(?=\\b)')
-        return lambda caption: pattern.sub(replace_match, caption)
+        return pattern
         
     def __call__(self, caption):
-        return self.replacer(caption)
+        return self.pattern.sub(self.replace_match, caption)
 
 # Augmentation module that resizes, pads, and crops images (whichever apply)
 # Final image will be of shape 'shape', which can be:
