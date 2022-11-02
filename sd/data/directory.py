@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from pathlib import Path
 from PIL import Image
 from torch.utils.data import Dataset
 import json
@@ -89,7 +90,7 @@ class TaggedDirectoryDataset(DirectoryDataset):
         assert(directory_tag_mode in ['append', 'prepend', 'replace'])
 
         self.num_images = len(self.image_paths)
-        print(f'DirectoryDataset has {self.num_images} images')
+        print(f'TaggedDirectoryDataset has {self.num_images} images')
         self._length = self.num_images 
 
         self.fixed_caption = fixed_caption
