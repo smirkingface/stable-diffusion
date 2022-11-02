@@ -4,6 +4,7 @@ from pathlib import Path
 from PIL import Image
 from torch.utils.data import Dataset
 import json
+import re
 
 from sd.data.utils import load_transforms, apply_transforms
 
@@ -77,8 +78,10 @@ class DirectoryDataset(Dataset):
 
 # Extension to the DirectoryDataset that recursively searches through the data root and uses each subdirectory as a tag to add to the caption
 # (either on the front: directory_tag_mode='prepend', or the back: directory_tag_mode='append', or replacing the entire caption: directory_tag_mode='replace')
+# If search_filenames==True, it will also look for tags on the filename (minus the extension, of course). The optional filename_prefix_re is a regular expression
+# for extra junk in the filename to remove, prior to parsing filename tags.
 class TaggedDirectoryDataset(DirectoryDataset):
-    def __init__(self, data_root, fixed_caption=None, tag_separator=',', directory_tag_mode='append', mask_key=None, transforms=[], caption_transforms=[]):
+    def __init__(self, data_root, fixed_caption=None, tag_separator=',', directory_tag_mode='append', search_filenames=False, filename_prefix_re=None, mask_key=None, transforms=[], caption_transforms=[]):
 
         self.data_root = data_root
         self.image_paths = Path(data_root).rglob('*.*')
@@ -91,7 +94,11 @@ class TaggedDirectoryDataset(DirectoryDataset):
 
         self.num_images = len(self.image_paths)
         print(f'TaggedDirectoryDataset has {self.num_images} images')
-        self._length = self.num_images 
+        self._length = self.num_images
+
+        self.search_filenames = search_filenames
+        self.filename_tags = [x.stem for x in self.image_paths]
+        self.filename_prefix_re = re.compile(filename_prefix_re) if filename_prefix_re else None
 
         self.fixed_caption = fixed_caption
         self.mask_key = mask_key
@@ -101,8 +108,16 @@ class TaggedDirectoryDataset(DirectoryDataset):
 
     def load_caption(self, i):
         filename = os.path.splitext(self.image_paths[i % self.num_images])[0] + '.txt'
-        directory_tags = self.directory_tags[i % self.num_images]
-        
+        directory_tags = list(self.directory_tags[i % self.num_images])
+
+        if self.search_filenames:
+            filename_tags = self.filename_tags[i % self.num_images]
+            if self.filename_prefix_re:
+                filename_tags = self.filename_prefix_re.sub('', filename_tags)
+
+            if len(filename_tags):
+                directory_tags.append(filename_tags)
+
         if self.directory_tag_mode != 'replace':
             if self.fixed_caption != None:
                 caption = self.fixed_caption
@@ -110,11 +125,11 @@ class TaggedDirectoryDataset(DirectoryDataset):
                 caption = open(filename).read()
             else:
                 caption = ''
-        
+
         if self.directory_tag_mode == 'append':
-            caption = self.tag_separator.join([caption] + list(directory_tags))
+            caption = self.tag_separator.join([caption] + directory_tags)
         elif self.directory_tag_mode == 'prepend':
-            caption = self.tag_separator.join(list(directory_tags) + [caption])
+            caption = self.tag_separator.join(directory_tags + [caption])
         elif self.directory_tag_mode == 'replace':
-            caption = self.tag_separator.join(list(directory_tags))
+            caption = self.tag_separator.join(directory_tags)
         return caption
