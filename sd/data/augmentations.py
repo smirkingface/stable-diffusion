@@ -45,13 +45,20 @@ class ShuffleCaption:
 # replaced by the key word. If match_tag==True, only comma-separated (or tag_separator separated) tags will be matched, which
 # can be multiple words. If match_tag==False, synonyms will be matched as complete words (but synonyms can contain spaces and otherwise
 # characters).
+#
 # Note that if you want to replace a randomly between all occurences of a synonym list, each synonym must be listed as a
 # key word, for example:
 # car: [car, automobile, wagon]
 # automobile: [car, automobile, wagon] 
 # wagon: [car, automobile, wagon]
+#
+# You can shortcut this with make_interchangeable==True, which would turn all lists like the following into the above:
+# car: [automobile, wagon]
+#
+# This option both adds the keyword to the list, and makes all of the words interchangeable to replace. Note that this
+# option is incompatible with unify==True.
 class ReplaceSynonyms:
-    def __init__(self, synonyms, match_tag=False, tag_separator=',', unify=False):
+    def __init__(self, synonyms, match_tag=False, tag_separator=',', unify=False, make_interchangeable=False):
         self.unify = unify
         if isinstance(synonyms, str):
             synonyms = yaml.safe_load(open(synonyms, 'r'))
@@ -69,6 +76,19 @@ class ReplaceSynonyms:
                     if synonyms not in unify_rep:
                         unify_rep[synonyms] = word
             synonyms = unify_rep
+        elif make_interchangeable:
+            new_dict = {}
+            for word,synonyms in synonyms.items():
+                if not isinstance(synonyms, list):
+                    synonyms = [synonyms]
+
+                synonyms.insert(0, word)
+                for new_word in synonyms:
+                    if new_word not in new_dict:
+                        new_dict[new_word] = list(synonyms)
+                    else:
+                        new_dict[new_word].extend(filter(lambda x: x != new_word, synonyms))
+            synonyms = new_dict
         
         self.synonyms = synonyms
         self.pattern = self.make_pattern(synonyms, match_tag, tag_separator)
