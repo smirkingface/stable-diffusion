@@ -52,13 +52,13 @@ class ShuffleCaption:
 # automobile: [car, automobile, wagon] 
 # wagon: [car, automobile, wagon]
 #
-# You can shortcut this with interchangeable_list==True, which would turn a list like this into the above:
+# You can shortcut this with make_interchangeable==True, which would turn all lists like the following into the above:
 # car: [automobile, wagon]
 #
 # This option both adds the keyword to the list, and makes all of the words interchangeable to replace. Note that this
 # option is incompatible with unify==True.
 class ReplaceSynonyms:
-    def __init__(self, synonyms, match_tag=False, tag_separator=',', unify=False, interchangeable_list=False):
+    def __init__(self, synonyms, match_tag=False, tag_separator=',', unify=False, make_interchangeable=False):
         self.unify = unify
         if isinstance(synonyms, str):
             synonyms = yaml.safe_load(open(synonyms, 'r'))
@@ -76,16 +76,18 @@ class ReplaceSynonyms:
                     if synonyms not in unify_rep:
                         unify_rep[synonyms] = word
             synonyms = unify_rep
-        elif interchangeable_list:
+        elif make_interchangeable:
             new_dict = {}
-            for keyword,replacements in synonyms.items():
-                if not isinstance(replacements, list):
-                    replacements = [replacements]
+            for word,synonyms in synonyms.items():
+                if not isinstance(synonyms, list):
+                    synonyms = [synonyms]
 
-                replacements.insert(0, keyword)
-                for new_keyword in replacements:
-                    if new_keyword not in new_dict:
-                        new_dict[new_keyword] = replacements
+                synonyms.insert(0, word)
+                for new_word in synonyms:
+                    if new_word not in new_dict:
+                        new_dict[new_word] = list(synonyms)
+                    else:
+                        new_dict[new_word].extend(filter(lambda x: x != new_word, synonyms))
             synonyms = new_dict
         
         self.synonyms = synonyms
