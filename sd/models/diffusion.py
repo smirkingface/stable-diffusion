@@ -11,6 +11,9 @@ from sd.modules.ema import LitEma
 from sd.modules.distributions import DiagonalGaussianDistribution
 from sd.modules.schedule import DDPMSchedule
 
+def _disabled_train(self, mode=None):
+    return
+
 class StableDiffusion(pl.LightningModule):
     def __init__(self, unet_config={'target': 'sd.modules.unet.UNetModel'},
                  first_stage_config={'target': 'sd.models.autoencoder.AutoencoderKL'},
@@ -126,7 +129,7 @@ class StableDiffusion(pl.LightningModule):
     def instantiate_first_stage(self, config):
         model = instantiate_from_config(config)
         self.first_stage_model = model.eval()
-        self.first_stage_model.train = lambda self,mode=None: self # Overwrite train() to make sure the model does not get set to train mode
+        self.first_stage_model.train = _disabled_train # Overwrite train() to make sure the model does not get set to train mode
         for param in self.first_stage_model.parameters():
             param.requires_grad = False
 
@@ -137,7 +140,7 @@ class StableDiffusion(pl.LightningModule):
         if not self.cond_stage_trainable:
             model = instantiate_from_config(config)
             self.cond_stage_model.eval()
-            self.cond_stage_model.train = lambda self,mode=None: self # Overwrite train() to make sure the model does not get set to train mode
+            self.cond_stage_model.train = _disabled_train # Overwrite train() to make sure the model does not get set to train mode
             for param in self.cond_stage_model.parameters():
                 param.requires_grad = False
     
