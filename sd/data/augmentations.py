@@ -194,17 +194,17 @@ class ResizePadAndCrop:
         f = self.max_scale_before_crop
         if self.allow_padding:
             if ar_shape > ar_image:
-                h = random.randint(shape[1], min(round(shape[1]*f), image.size[1]))
+                h = random.randint(shape[1], max(min(round(shape[1]*f), image.size[1]), shape[1]))
                 w = round(image.size[0]/image.size[1] * h)
             else:
-                w = random.randint(shape[0], min(round(shape[0]*f), image.size[0]))
+                w = random.randint(shape[0], max(min(round(shape[0]*f), image.size[0]), shape[0]))
                 h = round(image.size[1]/image.size[0] * w)
         else:
             if ar_shape < ar_image:
-                h = random.randint(shape[1], min(round(shape[1]*f), image.size[1]))
+                h = random.randint(shape[1], max(min(round(shape[1]*f), image.size[1]), shape[1]))
                 w = round(image.size[0]/image.size[1] * h)
             else:
-                w = random.randint(shape[0], min(round(shape[0]*f), image.size[0]))
+                w = random.randint(shape[0], max(min(round(shape[0]*f), image.size[0]), shape[0]))
                 h = round(image.size[1]/image.size[0] * w)
         self.resize.size = (h,w)
         
