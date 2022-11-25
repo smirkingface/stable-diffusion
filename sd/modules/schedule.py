@@ -7,8 +7,9 @@ from sd.modules.util import extract_into_tensor
 # TODO: Fix arrays bouncing between torch and numpy
 
 class DDPMSchedule(torch.nn.Module):
-    def __init__(self, timesteps=1000, beta_schedule='quad', linear_start=0.00085, linear_end=0.0120, cosine_s=8e-3, v_posterior=0):
+    def __init__(self, timesteps=1000, beta_schedule='quad', linear_start=0.00085, linear_end=0.0120, cosine_s=8e-3, v_posterior=0, parameterization='eps'):
         super().__init__()
+        self.parameterization = parameterization
         self.register_schedule(beta_schedule=beta_schedule, timesteps=timesteps, linear_start=linear_start, linear_end=linear_end, cosine_s=cosine_s, v_posterior=v_posterior)
 
     def make_beta_schedule(self, schedule, n_timestep, linear_start=0.00085, linear_end=0.0120, cosine_s=8e-3):
@@ -61,12 +62,18 @@ class DDPMSchedule(torch.nn.Module):
         self.register_buffer('posterior_log_variance_clipped', torch.log(self.posterior_variance.clamp(min=1e-20)), persistent=False)
         self.register_buffer('posterior_mean_coef1', to_torch(betas * np.sqrt(alphas_cumprod_prev) / (1 - alphas_cumprod)), persistent=False)
         self.register_buffer('posterior_mean_coef2', to_torch((1 - alphas_cumprod_prev) * np.sqrt(alphas) / (1 - alphas_cumprod)), persistent=False)
-
-        lvlb_weights = self.betas ** 2 / (2 * self.posterior_variance * to_torch(alphas) * (1 - self.alphas_cumprod))
     
-        # TODO how to choose this term
+        if self.parameterization == 'eps':
+            lvlb_weights = self.betas ** 2 / (2 * self.posterior_variance * to_torch(alphas) * (1 - self.alphas_cumprod))
+        elif self.parameterization == 'x0':
+            lvlb_weights = 0.5 * np.sqrt(torch.Tensor(alphas_cumprod)) / (2. * 1 - torch.Tensor(alphas_cumprod))
+        elif self.parameterization == 'v':
+            lvlb_weights = torch.ones_like(self.betas ** 2 / (2 * self.posterior_variance * to_torch(alphas) * (1 - self.alphas_cumprod)))
+        else:
+            raise NotImplementedError('Parameterization not supported')
+    
         lvlb_weights[0] = lvlb_weights[1]
-        self.lvlb_weights = lvlb_weights
+        self.register_buffer('lvlb_weights', lvlb_weights, persistent=False)
         assert not torch.isnan(self.lvlb_weights).all()
         
     def q_sample(self, x_start, t, noise=None):
@@ -80,6 +87,29 @@ class DDPMSchedule(torch.nn.Module):
         return (
                 extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t -
                 extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
+        )
+    def predict_start_from_eps(self, x_t, t, e_t):
+        return (
+              (x_t - extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * e_t) /
+              extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape)
+        )
+
+    def get_v(self, x, noise, t):
+        return (
+                extract_into_tensor(self.sqrt_alphas_cumprod, t, x.shape) * noise -
+                extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x.shape) * x
+        )
+        
+    def predict_eps_from_z_and_v(self, x_t, t, v):
+        return (
+                extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * v +
+                extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * x_t
+        )
+        
+    def predict_start_from_z_and_v(self, x_t, t, v):
+        return (
+                extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * x_t -
+                extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * v
         )
 
     def q_posterior(self, x_start, x_t, t):

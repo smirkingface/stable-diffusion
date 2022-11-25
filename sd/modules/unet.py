@@ -222,7 +222,9 @@ class UNetModel(nn.Module):
         num_heads=8,
         num_head_channels=-1,
         transformer_depth=1,
-        context_dim=768
+        context_dim=768,
+        use_xformers=False,
+        use_linear_in_transformer=False
         ):
         super().__init__()
 
@@ -253,6 +255,8 @@ class UNetModel(nn.Module):
         self.dims = dims
         self.transformer_depth = transformer_depth
         self.context_dim = context_dim
+        self.use_xformers = use_xformers
+        self.use_linear_in_transformer = use_linear_in_transformer
 
         self.build_time_embed(model_channels)
         ch, ds = self.build_input_blocks(in_channels, model_channels)
@@ -279,7 +283,7 @@ class UNetModel(nn.Module):
             num_heads = ch // self.num_head_channels
             dim_head = self.num_head_channels
                     
-        return SpatialTransformer(ch, num_heads, dim_head, depth=self.transformer_depth, context_dim=self.context_dim, use_checkpoint=self.use_checkpoint)
+        return SpatialTransformer(ch, num_heads, dim_head, depth=self.transformer_depth, context_dim=self.context_dim, use_checkpoint=self.use_checkpoint, use_xformers=self.use_xformers, use_linear=self.use_linear_in_transformer)
 
     def build_input_downsample(self, level, ch):
         return Downsample(ch, dims=self.dims, out_channels=ch)
@@ -316,7 +320,7 @@ class UNetModel(nn.Module):
             num_heads = ch // self.num_head_channels
             dim_head = self.num_head_channels
             
-        return SpatialTransformer(ch, num_heads, dim_head, depth=self.transformer_depth, context_dim=self.context_dim, use_checkpoint=self.use_checkpoint)
+        return SpatialTransformer(ch, num_heads, dim_head, depth=self.transformer_depth, context_dim=self.context_dim, use_checkpoint=self.use_checkpoint, use_xformers=self.use_xformers, use_linear=self.use_linear_in_transformer)
 
     def build_middle_block(self, ch):
         self.middle_block = TimestepEmbedSequential(
@@ -336,7 +340,7 @@ class UNetModel(nn.Module):
             num_heads = ch // self.num_head_channels
             dim_head = self.num_head_channels
 
-        return SpatialTransformer(ch, num_heads, dim_head, depth=self.transformer_depth, context_dim=self.context_dim, use_checkpoint=self.use_checkpoint)
+        return SpatialTransformer(ch, num_heads, dim_head, depth=self.transformer_depth, context_dim=self.context_dim, use_checkpoint=self.use_checkpoint, use_xformers=self.use_xformers, use_linear=self.use_linear_in_transformer)
 
     def build_output_upsample(self, level, ch):
         return Upsample(ch, dims=self.dims)
@@ -388,3 +392,28 @@ class UNetModel(nn.Module):
         h = h.type(x.dtype)
 
         return self.out(h)
+
+class UNetModelV2(UNetModel):
+    def __init__(
+        self,
+        in_channels=4,
+        model_channels=320,
+        out_channels=4,
+        num_res_blocks=2,
+        attention_resolutions=[4,2,1],
+        dropout=0,
+        channel_mult=[1,2,4,4],
+        dims=2,
+        use_checkpoint=False,
+        use_fp16=False,
+        num_heads=-1,
+        num_head_channels=64,
+        transformer_depth=1,
+        context_dim=1024,
+        use_xformers=False,
+        use_linear_in_transformer=True
+        ):
+        super().__init__(in_channels, model_channels, out_channels, num_res_blocks, attention_resolutions, dropout,
+                         channel_mult, dims, use_checkpoint, use_fp16, num_heads, num_head_channels, transformer_depth,
+                         context_dim, use_xformers, use_linear_in_transformer)
+

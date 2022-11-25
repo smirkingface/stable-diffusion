@@ -1,12 +1,15 @@
 name: sd
 dependencies:
+  - nvidia::cuda
   - pytorch::pytorch
+  - pytorch::pytorch-cuda
   - pytorch::torchvision
   - numpy
   - pillow
   - tqdm
   - pip:
     - pytorch-lightning>=1.7.7
+    - open_clip_torch
     - einops
     - transformers
     - webdataset

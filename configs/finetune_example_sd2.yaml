@@ -1,6 +1,6 @@
 # Model configuration
 model:
-  target: sd.models.diffusion.StableDiffusion
+  target: sd.models.diffusion.StableDiffusionV2
   params:
     # Low learning rate to preserve original model
     base_learning_rate: 1.0e-06
@@ -20,7 +20,7 @@ model:
 
     # Default UNet configuration with gradient checkpoints for decreased VRAM usage (at the cost of computation time)
     unet_config:
-      target: sd.modules.unet.UNetModel
+      target: sd.modules.unet.UNetModelV2
       params:
         use_checkpoint: True
 

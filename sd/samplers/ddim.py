@@ -51,22 +51,21 @@ class DDIMSampler(Sampler):
         else:
             raise NotImplementedError(f'There is no ddim discretization method called "{ddim_discretize}"')
 
-    def get_x_prev(self, x, e_t, t, t_next):
+    def get_x_prev(self, x, e_t, pred_x0, t, t_next):
         a_t, a_prev, sigma_t = self.get_ddim_parameters(t, t_next)
         sqrt_one_minus_at = np.sqrt(1 - a_t)
         sqrt_at = np.sqrt(a_t)
     
-        # current prediction for x_0
-        pred_x0 = (x - sqrt_one_minus_at * e_t) / sqrt_at
-
-        # Dynamic thresholding of pred_x0
-        if self.dynamic_thresholding:
-            b = pred_x0.shape[0]
-            s = torch.quantile(abs(pred_x0.reshape(b,-1)), self.dynamic_thresholding_pars['percentile'], dim=1, keepdim=False).reshape(b,1,1,1)
-            s = s.clip(self.dynamic_thresholding_pars['min_s'])
-            pred_x0 = pred_x0.clip(-s * self.dynamic_thresholding_pars['clip_scale'], s * self.dynamic_thresholding_pars['clip_scale'])
-            pred_x0 /= s * self.dynamic_thresholding_pars['scale']
-            e_t = (x - sqrt_at*pred_x0) / sqrt_one_minus_at
+        # e_t = (x - sqrt_at*pred_x0) / sqrt_one_minus_at
+    
+        # # Dynamic thresholding of pred_x0
+        # if self.dynamic_thresholding:
+            # b = pred_x0.shape[0]
+            # s = torch.quantile(abs(pred_x0.reshape(b,-1)), self.dynamic_thresholding_pars['percentile'], dim=1, keepdim=False).reshape(b,1,1,1)
+            # s = s.clip(self.dynamic_thresholding_pars['min_s'])
+            # pred_x0 = pred_x0.clip(-s * self.dynamic_thresholding_pars['clip_scale'], s * self.dynamic_thresholding_pars['clip_scale'])
+            # pred_x0 /= s * self.dynamic_thresholding_pars['scale']
+            # e_t = (x - sqrt_at*pred_x0) / sqrt_one_minus_at
         
         # direction pointing to x_t
         dir_xt = np.sqrt(1 - a_prev - sigma_t**2) * e_t
@@ -75,8 +74,8 @@ class DDIMSampler(Sampler):
         return x_prev
 
     def p_sample(self, x, t, t_next, cond=None, unconditional_conditioning=None):
-        e_t = self.get_model_output(x, t, cond, unconditional_conditioning)
-        return self.get_x_prev(x, e_t, t, t_next)
+        e_t, pred_x0 = self.get_model_output(x, t-1, cond, unconditional_conditioning)
+        return self.get_x_prev(x, e_t, pred_x0, t, t_next)
 
     @torch.no_grad()
     def sample(self, shape=None, cond=None, unconditional_conditioning=None, mask=None, x0=None, x_init=None, t_start=None, t_end=0):

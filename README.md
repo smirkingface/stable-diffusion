@@ -5,6 +5,12 @@ Currently, the repository is almost fully compatible with checkpoints produced w
 
 For a list of changes and notes on compatibility with the original repository, see [changes.md](changes.md).
 
+## News
+
+25/11/2022:
+- Added support for inference and finetuning with the SD 2.0 base model (inpainting is still unsupported). See [this page](docs/sd2.0.md) for details.
+- Added support for using xformers in the UNet attention modules. This greatly reduces VRAM usage of the model. Support for the other attention modules is coming soon. See [this page](docs/xformers.md) for details on installing and enabling xformers.
+
 # Supporting this project
 This repository is being developed as part of the SmirkingFace project and you can support its development through Patreon (http://patreon.com/smirkingface). While the SD finetuning for this project aims at NSFW content, the code developed here is general purpose and not biased in any way, nor contains any NSFW content.
 

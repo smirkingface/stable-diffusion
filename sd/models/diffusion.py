@@ -21,6 +21,7 @@ class StableDiffusion(pl.LightningModule):
                  cond_stage_key='caption',
                  cond_stage_trainable=False,
                  conditioning_key='crossattn',
+                 parameterization='eps',
                  base_learning_rate=1e-6,
                  scale_factor=0.18215,
                  loss_type='l2',
@@ -37,6 +38,9 @@ class StableDiffusion(pl.LightningModule):
                  sd_compatibility=True
                  ):
         super().__init__()
+        self.parameterization = parameterization
+        assert parameterization in ["eps", "x0", "v"], 'currently only supporting "eps" and "x0" and "v"'
+        
         self.cond_stage_model = None
         self.first_stage_key = first_stage_key
         self.cond_stage_key = cond_stage_key
@@ -58,7 +62,7 @@ class StableDiffusion(pl.LightningModule):
         self.original_elbo_weight = original_elbo_weight
         self.l_simple_weight = l_simple_weight
 
-        self.schedule = DDPMSchedule(**schedule_parameters)
+        self.schedule = DDPMSchedule(**schedule_parameters, parameterization=parameterization)
         self.loss_type = loss_type
          
         self.cond_stage_trainable = cond_stage_trainable
@@ -119,7 +123,7 @@ class StableDiffusion(pl.LightningModule):
                 mask = nn.functional.avg_pool2d(mask, list(np.int16(np.array(mask.shape[2:])/x0.shape[2:])))
             assert(mask.shape == x0.shape)
         
-        x_samples = sampler.sample(shape=shape, cond=c, unconditional_conditioning=uc, x_init=x_init, mask=mask, t_start=t_start, t_end=t_end)
+        x_samples = sampler.sample(shape=shape, cond=c, unconditional_conditioning=uc, x_init=x_init, x0=x0, mask=mask, t_start=t_start, t_end=t_end)
 
         if not skip_decode:
             x_samples = self.decode_first_stage(x_samples)
@@ -251,7 +255,16 @@ class StableDiffusion(pl.LightningModule):
         loss_dict = {}
         prefix = 'train' if self.training else 'val'
 
-        loss_simple = self.get_loss(model_output*mask, noise*mask, mean=False).mean([1, 2, 3])
+        if self.parameterization == 'eps':
+            target = noise
+        elif self.parameterization == 'x0':
+            target = x_start
+        elif self.parameterization == 'v':
+            target = self.schedule.get_v(x_start, noise, t)
+        else:
+            raise NotImplementedError(f"Parameterization {self.parameterization} not yet supported")
+
+        loss_simple = self.get_loss(model_output*mask, target*mask, mean=False).mean([1, 2, 3])
         loss_dict.update({f'{prefix}/loss_simple': loss_simple.mean()})
 
         loss = self.l_simple_weight * loss_simple.mean()
@@ -364,6 +377,14 @@ class StableDiffusion(pl.LightningModule):
             state_dict[f'{prefix}log_one_minus_alphas_cumprod'] = torch.log(1 - state_dict[f'{prefix}alphas_cumprod'])
         return state_dict
 
+class StableDiffusionV2(StableDiffusion):
+    def __init__(self, unet_config={'target': 'sd.modules.unet.UNetModelV2'},
+                 first_stage_config={'target': 'sd.models.autoencoder.AutoencoderKL'},
+                 cond_stage_config={'target': 'sd.modules.clip.FrozenOpenCLIPEmbedder'},
+                 parameterization='v',
+                 **kwargs
+                 ):
+        super().__init__(unet_config=unet_config, first_stage_config=first_stage_config, cond_stage_config=cond_stage_config, parameterization=parameterization, **kwargs)
 
 class DiffusionWrapper(pl.LightningModule):
     def __init__(self, diff_model_config, conditioning_key):

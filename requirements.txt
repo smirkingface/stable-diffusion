@@ -2,3 +2,4 @@ pytorch-lightning
 einops
 transformers
 webdataset
+open_clip_torch

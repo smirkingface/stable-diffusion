@@ -8,12 +8,12 @@ class PLMSSampler(DDIMSampler):
         super().__init__(num_timesteps=num_timesteps, unconditional_guidance_scale=unconditional_guidance_scale, dynamic_thresholding=dynamic_thresholding)
 
     def p_sample(self, x, t, t_next, cond=None, unconditional_conditioning=None, old_eps=None):
-        e_t = self.get_model_output(x, t, cond, unconditional_conditioning)
+        e_t,_ = self.get_model_output(x, t, cond, unconditional_conditioning)
         
         if len(old_eps) == 0:
             # Pseudo Improved Euler (2nd order)
             x_prev = self.get_x_prev(x, e_t, t, t_next)
-            e_t_next = self.get_model_output(x_prev, t_next, cond, unconditional_conditioning)
+            e_t_next,_ = self.get_model_output(x_prev, t_next, cond, unconditional_conditioning)
             e_t_prime = (e_t + e_t_next) / 2
         elif len(old_eps) == 1:
             # 2nd order Pseudo Linear Multistep (Adams-Bashforth)

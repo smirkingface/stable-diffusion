@@ -142,13 +142,20 @@ def main():
         choices=['ddpm', 'ddim', 'plms'],
         default='ddim'
     )
-    
+    parser.add_argument(
+        '--v2',
+        action='store_true',
+        help='Use SD 2.0 model architecture',
+    )
     opt = parser.parse_args()
 
     if opt.config:
         config = yaml.safe_load(open(opt.config, 'r'))
     else:
-        config = {'model': {'target': 'sd.models.diffusion.StableDiffusion'}}
+        if opt.v2:
+            config = {'model': {'target': 'sd.models.diffusion.StableDiffusionV2'}}
+        else:
+            config = {'model': {'target': 'sd.models.diffusion.StableDiffusion'}}
     model = load_model_from_config(config, opt.ckpt, verbose=True, swap_ema=opt.use_ema, no_ema=not opt.use_ema)
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')

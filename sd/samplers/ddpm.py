@@ -11,8 +11,8 @@ class DDPMSampler(Sampler):
         self.clip_denoised = clip_denoised
     
     def p_mean_variance(self, x, t, cond=None, unconditional_conditioning=None):
-        model_out = self.get_model_output(x, t, cond, unconditional_conditioning)
-        x_recon = self.model.schedule.predict_start_from_noise(x, t, model_out)
+        e_t,_ = self.get_model_output(x, t, cond, unconditional_conditioning)
+        x_recon = self.model.schedule.predict_start_from_noise(x, t, e_t)
 
         if self.clip_denoised:
             x_recon.clamp_(-1, 1)
